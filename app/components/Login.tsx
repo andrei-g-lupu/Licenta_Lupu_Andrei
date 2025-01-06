@@ -1,7 +1,3 @@
-// File: c:/Tutorial_Rag/app/components/Login.tsx
-
-'use client';
-
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './Login.module.css';
@@ -37,7 +33,7 @@ const Login = () => {
       }
 
       // On success:
-      router.push('/dashboard'); // Ensure /dashboard exists and is protected
+      window.location.href = 'http://localhost:3000'; // Redirect to localhost:3000
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');
@@ -81,6 +77,12 @@ const Login = () => {
           {loading ? 'Logging in...' : 'Login'}
         </button>
       </form>
+      <button
+        onClick={() => router.push('/register')}
+        className="mt-4 p-2 bg-gray-500 text-white rounded"
+      >
+        Don't have an account? Register
+      </button>
     </div>
   );
 };
