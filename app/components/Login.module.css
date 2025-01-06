@@ -1,0 +1,46 @@
+/* Login.module.css */
+
+.loginContainer {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .inputField {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+  }
+  
+  .inputField:focus {
+    border-color: #3182ce; /* Tailwind's blue-600 */
+    outline: none;
+  }
+  
+  .loginContainer h2 {
+    margin-bottom: 1.5rem;
+    text-align: center;
+    color: #2d3748; /* Tailwind's gray-800 */
+  }
+  
+  .loginContainer form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .loginContainer label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #4a5568; /* Tailwind's gray-700 */
+  }
+  
+  .loginContainer button {
+    margin-top: 1rem;
+  }

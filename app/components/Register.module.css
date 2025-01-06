@@ -1,0 +1,14 @@
+/* Register.module.css */
+.registerContainer {
+  max-width: 600px; /* Increase the max width of the form container */
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.inputField {
+  width: 80%; /* Make input fields smaller, adjust as needed */
+  margin: 1rem 0; /* Add some margin for spacing */
+}

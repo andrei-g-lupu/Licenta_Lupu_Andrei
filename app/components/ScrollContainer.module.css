@@ -1,0 +1,7 @@
+.scrollContainer {
+  overflow-y: auto;
+  max-height: 500px; /* Adjust based on your layout */
+  scroll-behavior: smooth;
+  padding: 16px; /* Optional: for spacing */
+  background-color: #f9f9f9; /* Optional: background color */
+}
