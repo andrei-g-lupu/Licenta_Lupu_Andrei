@@ -33,7 +33,7 @@ const Login = () => {
       }
 
       // On success:
-      window.location.href = 'http://localhost:3000'; // Redirect to localhost:3000
+      window.location.href = './'; // Redirect to main page
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');
