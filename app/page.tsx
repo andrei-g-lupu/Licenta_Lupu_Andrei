@@ -3,15 +3,21 @@
 "use client"
 import { useState } from 'react';
 import Image from "next/image";
-import GPTlogo from "C:/Tutorial_Rag/app/public/Unchiul Steli.png"
+// import GPTlogo from "C:/Tutorial_Rag/app/public/Unchiul Steli.png"
 
 // Import internal modules
 import { useChat } from "ai/react"
 import { Message } from "ai"
-import Bubble from "C:/Tutorial_Rag/app/components/Bubble"
-import LoadingBubble from "C:/Tutorial_Rag/app//components/LoadingBubble"
-import PromptSuggestionRow from "C:/Tutorial_Rag/app//components/PromptSuggestionRow"
-import ScrollContainer from "C:/Tutorial_Rag/app/components/ScrollContainer" // **Added Import**
+// import Bubble from "C:/Tutorial_Rag/app/components/Bubble"
+// import LoadingBubble from "C:/Tutorial_Rag/app//components/LoadingBubble"
+// import PromptSuggestionRow from "C:/Tutorial_Rag/app//components/PromptSuggestionRow"
+// import ScrollContainer from "C:/Tutorial_Rag/app/components/ScrollContainer" // **Added Import**
+
+import GPTlogo from "./public/Unchiul Steli.png";
+import Bubble from "./components/Bubble";
+import LoadingBubble from "./components/LoadingBubble";
+import PromptSuggestionRow from "./components/PromptSuggestionRow";
+import ScrollContainer from "./components/ScrollContainer";
 
 const Home = () => {
   const { append, isLoading, messages, input, handleInputChange, handleSubmit } = useChat()

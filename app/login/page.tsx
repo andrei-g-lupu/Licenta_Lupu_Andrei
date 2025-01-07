@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Login from 'C:/Tutorial_Rag/app/components/Login'
+import Login from '../components/Login';
 import styles from '../components/Login.module.css'; // Ensure the path is correct
 
 const LoginPage = () => {
