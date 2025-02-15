@@ -22,6 +22,7 @@ const Register = () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
+    
     try {
       const response = await fetch('/api/register', {
         method: 'POST',
@@ -39,7 +40,6 @@ const Register = () => {
       }
 
       setSuccess('Registration successful! Redirecting to login...');
-      // Optionally, redirect to login after a short delay
       setTimeout(() => {
         router.push('/login');
       }, 2000);
@@ -53,51 +53,88 @@ const Register = () => {
 
   return (
     <div className={styles.registerContainer}>
-      <h2>Register</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      {success && <p className="text-green-500">{success}</p>}
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="username">Username</label>
-        <input
-          type="text"
-          name="username"
-          id="username"
-          value={form.username}
-          onChange={handleChange}
-          required
-          className={styles.inputField}
-        />
+      <div className={styles.formHeader}>
+        <h2>Create Account</h2>
+        <p>Join us today and get started</p>
+      </div>
+      
+      {error && (
+        <div className={styles.errorAlert}>
+          <span>⚠️</span> {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className={styles.successAlert}>
+          <span>✅</span> {success}
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.inputGroup}>
+          <label htmlFor="username">Username</label>
+          <input
+            type="text"
+            name="username"
+            id="username"
+            value={form.username}
+            onChange={handleChange}
+            required
+            className={styles.input}
+            placeholder="johndoe"
+          />
+        </div>
 
-        <label htmlFor="email">Email</label>
-        <input
-          type="email"
-          name="email"
-          id="email"
-          value={form.email}
-          onChange={handleChange}
-          required
-          className={styles.inputField}
-        />
+        <div className={styles.inputGroup}>
+          <label htmlFor="email">Email</label>
+          <input
+            type="email"
+            name="email"
+            id="email"
+            value={form.email}
+            onChange={handleChange}
+            required
+            className={styles.input}
+            placeholder="john@example.com"
+          />
+        </div>
 
-        <label htmlFor="password">Password</label>
-        <input
-          type="password"
-          name="password"
-          id="password"
-          value={form.password}
-          onChange={handleChange}
-          required
-          className={styles.inputField}
-        />
+        <div className={styles.inputGroup}>
+          <label htmlFor="password">Password</label>
+          <input
+            type="password"
+            name="password"
+            id="password"
+            value={form.password}
+            onChange={handleChange}
+            required
+            className={styles.input}
+            placeholder="••••••••"
+          />
+        </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="mt-4 p-2 bg-green-500 text-white rounded"
+          className={styles.submitButton}
         >
-          {loading ? 'Registering...' : 'Register'}
+          {loading ? (
+            <span className={styles.loader}>Creating account...</span>
+          ) : (
+            'Create Account'
+          )}
         </button>
       </form>
+
+      <div className={styles.footer}>
+        Already have an account?{' '}
+        <button
+          onClick={() => router.push('/login')}
+          className={styles.linkButton}
+        >
+          Sign in
+        </button>
+      </div>
     </div>
   );
 };

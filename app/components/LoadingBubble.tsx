@@ -1,7 +1,11 @@
-const LoadingBubble =  () => {
-    return (
-        <div className="loader"></div>
-    )
+export default function LoadingBubble() {
+  return (
+    <div className="message assistant-message">
+      <div className="loading-dots">
+        <span>.</span>
+        <span>.</span>
+        <span>.</span>
+      </div>
+    </div>
+  );
 }
-
-export default LoadingBubble

@@ -2,56 +2,126 @@
 
 .loginContainer {
   width: 100%;
-  max-width: 600px;
+  max-width: 400px;
   padding: 2rem;
-  background-color: #ffffff;
-  border-radius: 18px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  max-height: 180vh; /* Adjust based on your layout */
-
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  width: 90%;
+  max-width: 500px;
+  margin: 0 auto;
 }
-  
-  .inputField {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #cccccc;
-    border-radius: 4px;
-    padding: 0.5rem;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
+
+.formHeader {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.formHeader h2 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.formHeader p {
+  color: var(--text-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  border: none;
+  padding: 0;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.submitButton {
+  width: 100%;
+  padding: 0.75rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.submitButton:hover {
+  background: #1d4ed8;
+}
+
+.submitButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.errorAlert {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.linkButton:hover {
+  color: var(--secondary-color);
+}
+
+@media (max-width: 768px) {
+  .loginContainer {
+    padding: 1.5rem;
+    max-width: 90%;
   }
   
-  .inputField:focus {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #cccccc;
-    border-radius: 4px;
-    padding: 0.5rem;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
+  .formHeader h2 {
+    font-size: 1.25rem;
   }
   
-  .loginContainer h2 {
-    margin-bottom: 1rem;
-    text-align: center;
-    color: #2d3748; /* Tailwind's gray-800 */
-    
+  .formHeader p {
+    font-size: 0.95rem;
   }
   
-  .loginContainer form {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto; 
-    scroll-behavior: smooth; 
+  .submitButton {
+    padding: 0.65rem;
+    font-size: 0.9rem;
   }
-  
-  .loginContainer label {
-    margin-bottom: 0.25rem;
-    font-weight: 500;
-    color: #4a5568; /* Tailwind's gray-700 */
-    font-size: 0.875rem; 
-  }
-  
-  .loginContainer button {
-    margin-top: 1rem;
-  }
+}
