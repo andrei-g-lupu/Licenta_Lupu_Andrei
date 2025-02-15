@@ -1,4 +1,4 @@
-// File: C:\Tutorial_Rag\app\login\page.tsx
+// File: C:\Users\Andrei\Documents\Proiect_Licenta\Tutorial_Rag\app\login\page.tsx
 import * as entry from '../../../../app/login/page.js'
 import type { ResolvingMetadata } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

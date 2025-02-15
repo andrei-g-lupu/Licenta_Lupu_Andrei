@@ -1,7 +1,25 @@
 .scrollContainer {
   overflow-y: auto;
-  max-height: 500px; /* Adjust based on your layout */
+  max-height: calc(80vh - 200px);
   scroll-behavior: smooth;
-  padding: 16px; /* Optional: for spacing */
-  background-color: #f9f9f9; /* Optional: background color */
+  padding: 1rem;
+  background-color: var(--background-light);
+  border-radius: var(--radius-md);
+}
+
+.scrollContainer::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollContainer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollContainer::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.scrollContainer::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

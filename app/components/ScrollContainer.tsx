@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import styles from './ScrollContainer.module.css';
 
-const ScrollContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface ScrollContainerProps {
+  children: React.ReactNode;
+}
+
+const ScrollContainer: React.FC<ScrollContainerProps> = ({ children }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -11,7 +14,10 @@ const ScrollContainer: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }, [children]);
 
   return (
-    <div ref={containerRef} className={styles.scrollContainer}>
+    <div 
+      ref={containerRef} 
+      className="overflow-y-auto max-h-[600px] space-y-4 p-2 scroll-smooth"
+    >
       {children}
     </div>
   );

@@ -15,9 +15,9 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null); // Reset error before submitting
+    setError(null);
     try {
-      const response = await fetch('/api/login', { // Ensured to match server route
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -32,8 +32,7 @@ const Login = () => {
         return;
       }
 
-      // On success:
-      window.location.href = './'; // Redirect to main page
+      window.location.href = '/chat';
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');
@@ -44,45 +43,67 @@ const Login = () => {
 
   return (
     <div className={styles.loginContainer}>
-      <h2>Login</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="email">Email</label>
-        <input
-          type="email"
-          name="email"
-          id="email"
-          value={form.email}
-          onChange={handleChange}
-          required
-          className={styles.inputField}
-        />
+      <div className={styles.formHeader}>
+        <h2>Welcome Back</h2>
+        <p>Please sign in to continue</p>
+      </div>
+      
+      {error && (
+        <div className={styles.errorAlert}>
+          <span>⚠️</span> {error}
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.inputGroup}>
+          <label htmlFor="email">Email</label>
+          <input
+            type="email"
+            name="email"
+            id="email"
+            value={form.email}
+            onChange={handleChange}
+            required
+            className={styles.input}
+            placeholder="your@email.com"
+          />
+        </div>
 
-        <label htmlFor="password">Password</label>
-        <input
-          type="password"
-          name="password"
-          id="password"
-          value={form.password}
-          onChange={handleChange}
-          required
-          className={styles.inputField}
-        />
+        <div className={styles.inputGroup}>
+          <label htmlFor="password">Password</label>
+          <input
+            type="password"
+            name="password"
+            id="password"
+            value={form.password}
+            onChange={handleChange}
+            required
+            className={styles.input}
+            placeholder="••••••••"
+          />
+        </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="mt-4 p-2 bg-blue-500 text-white rounded"
+          className={styles.submitButton}
         >
-          {loading ? 'Logging in...' : 'Login'}
+          {loading ? (
+            <span className={styles.loader}>Loading...</span>
+          ) : (
+            'Sign In'
+          )}
         </button>
       </form>
-      <button
-        onClick={() => router.push('/register')}
-        className="mt-4 p-2 bg-gray-500 text-white rounded"
-      >
-        Don't have an account? Register
-      </button>
+
+      <div className={styles.footer}>
+        <button
+          onClick={() => router.push('/register')}
+          className={styles.linkButton}
+        >
+          Create an account
+        </button>
+      </div>
     </div>
   );
 };
