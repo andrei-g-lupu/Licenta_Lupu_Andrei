@@ -3,6 +3,7 @@ import { OpenAIStream, StreamingTextResponse } from "ai";
 import { Pool } from 'pg';
 import { cookies } from 'next/headers';
 import { decode } from 'jsonwebtoken';
+import { NextResponse } from 'next/server';
 let DataAPIClient;
 if (typeof window === "undefined") {
   DataAPIClient = require("@datastax/astra-db-ts").DataAPIClient;
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
     console.log("3. Auth token:", authToken ? "Found" : "Not found");
     
     if (!authToken) {
-      return new Response('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Decode the JWT token to get user info
@@ -84,7 +85,7 @@ export async function POST(req: Request) {
     console.log("4. Decoded token:", decodedToken ? "Success" : "Failed");
 
     if (!decodedToken?.email) {
-      return new Response('Invalid token', { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     // Get user data from database using email
@@ -202,24 +203,7 @@ Te rog să răspunzi doar pe baza acestui citat și să te referi la link-ul ace
 
     return new StreamingTextResponse(stream);
   } catch (error) {
-    console.error("Detailed error:", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
-    });
-    
-    // Return more detailed error message
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        name: error.name,
-        cause: error.cause
-      }), 
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    console.error("Detailed error:", error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

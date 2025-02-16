@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+"use client"
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './Login.module.css';
 
 const Login = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,9 @@ const Login = () => {
         return;
       }
 
-      window.location.href = '/chat';
+      // Get the callback URL from search params or default to chat
+      const callbackUrl = searchParams.get('callbackUrl') || '/chat';
+      window.location.href = callbackUrl;
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');
