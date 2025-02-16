@@ -1,5 +1,5 @@
 "use client"
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from "next/image";
 import { useChat } from "ai/react"
 import { Message } from "ai"
@@ -10,7 +10,79 @@ import PromptSuggestionRow from "../components/PromptSuggestionRow";
 import DisconnectButton from "../components/DisconnectButton";
 
 const ChatPage: React.FC = () => {
-  const { messages, input, handleInputChange, handleSubmit, isLoading, append } = useChat();
+  // Initialize conversation ID from localStorage
+  const [conversationId, setConversationId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('currentConversationId');
+      if (saved) return saved;
+      const newId = crypto.randomUUID();
+      localStorage.setItem('currentConversationId', newId);
+      return newId;
+    }
+    return '';
+  });
+
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+
+  // Load chat history first
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      if (!conversationId) return;
+      
+      try {
+        setIsLoadingHistory(true);
+        const response = await fetch(`/api/chat-history?conversationId=${conversationId}`, { credentials: 'include' });
+        if (response.ok) {
+          const history = await response.json();
+          const existingConversation = history.find(
+            (conv: any) => conv.conversation_id === conversationId
+          );
+          
+          if (existingConversation) {
+            const formattedMessages = existingConversation.messages.map((msg: any) => ({
+              id: msg.id,
+              content: msg.message_content,
+              role: msg.role as "user" | "assistant"
+            }));
+            setInitialMessages(formattedMessages);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadChatHistory();
+  }, [conversationId]);
+
+  // Initialize chat after history is loaded
+  const { messages, input, handleInputChange, handleSubmit, isLoading, append, setMessages } = useChat({
+    id: conversationId,
+    initialMessages,
+    body: {
+      conversationId
+    },
+    onResponse: (response) => {
+      // Ensure conversation ID is saved after each response
+      localStorage.setItem('currentConversationId', conversationId);
+    },
+    onFinish: () => {
+      // Update messages in state after completion
+      if (messages.length > 0) {
+        setInitialMessages(messages);
+      }
+    }
+  });
+
+  // Update messages when initialMessages changes
+  useEffect(() => {
+    if (initialMessages.length > 0) {
+      setMessages(initialMessages);
+    }
+  }, [initialMessages, setMessages]);
 
   const handlePrompt = (promptText: string) => {
     append({
@@ -18,12 +90,32 @@ const ChatPage: React.FC = () => {
       content: promptText,
       role: "user"
     });
+  };
+
+  const startNewChat = () => {
+    const newConversationId = crypto.randomUUID();
+    localStorage.setItem('currentConversationId', newConversationId);
+    setConversationId(newConversationId);
+    setInitialMessages([]);
+    setMessages([]);
+  };
+
+  if (isLoadingHistory) {
+    return <div className="flex justify-center items-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-4">
-      <DisconnectButton />
-      <div className="z-10 max-w-5xl w-full items-center justify-between text-sm lg:flex">
+      <div className="w-full flex justify-between items-center p-4">
+        <DisconnectButton />
+        <button
+          onClick={startNewChat}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+        >
+          Start New Chat
+        </button>
       </div>
 
       <div className="relative flex place-items-center">
@@ -71,6 +163,6 @@ const ChatPage: React.FC = () => {
       </section>
     </main>
   );
-}
+} 
 
 export default ChatPage; 
