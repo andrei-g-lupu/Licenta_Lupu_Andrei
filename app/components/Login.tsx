@@ -9,6 +9,15 @@ const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [callbackUrl, setCallbackUrl] = useState<string>('/chat');
+
+  useEffect(() => {
+    // Safely get callback URL from search params
+    const callback = searchParams?.get('callbackUrl');
+    if (callback) {
+      setCallbackUrl(callback);
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -34,8 +43,7 @@ const Login = () => {
         return;
       }
 
-      // Get the callback URL from search params or default to chat
-      const callbackUrl = searchParams.get('callbackUrl') || '/chat';
+      // Use the stored callback URL
       window.location.href = callbackUrl;
     } catch (err) {
       console.error('Login Error:', err);
