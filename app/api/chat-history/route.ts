@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { cookies } from 'next/headers';
 import { decode } from 'jsonwebtoken';
+import { NextResponse } from 'next/server';
 
 const pool = new Pool({
   connectionString: "postgresql://postgres.bqhtfgqaiidzsatkchao:Godofnaruto1!@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
@@ -10,18 +11,18 @@ const pool = new Pool({
 export async function GET(req: Request) {
   try {
     // Get user from auth token
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken = cookieStore.get('token')?.value;
     
     if (!authToken) {
-      return new Response('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Decode the JWT token to get user info
     const decodedToken = decode(authToken) as { email?: string } | null;
 
     if (!decodedToken?.email) {
-      return new Response('Invalid token', { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     // Get user data from database using email
@@ -65,6 +66,6 @@ export async function GET(req: Request) {
     }
   } catch (error) {
     console.error('Error fetching chat history:', error);
-    return new Response('Error fetching chat history', { status: 500 });
+    return NextResponse.json({ error: 'Error fetching chat history' }, { status: 500 });
   }
 } 
