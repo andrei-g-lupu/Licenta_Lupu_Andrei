@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     console.log("2. Using conversation ID:", conversationId);
     
     // Get user from auth token
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const authToken = cookieStore.get('token')?.value;
     console.log("3. Auth token:", authToken ? "Found" : "Not found");
     

@@ -9,9 +9,8 @@ export async function POST() {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    sameSite: 'lax',
-    maxAge: -1,
-    expires: new Date(0)
+    sameSite: 'strict',
+    maxAge: 0, // Expire the cookie immediately
   });
 
   return response;
