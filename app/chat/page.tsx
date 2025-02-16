@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import Image from "next/image";
 import { useChat } from "ai/react"
 import { Message } from "ai"
+import { useRouter } from 'next/navigation';
 import GPTlogo from "../public/Unchiul Steli.png";   
 import Bubble from "../components/Bubble";
 import LoadingBubble from "../components/LoadingBubble";
@@ -10,6 +11,42 @@ import PromptSuggestionRow from "../components/PromptSuggestionRow";
 import DisconnectButton from "../components/DisconnectButton";
 
 const ChatPage: React.FC = () => {
+  const router = useRouter();
+  
+  // Check authentication on mount and when returning to the page
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/chat-history', { 
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        if (!response.ok) {
+          router.replace('/login');
+        }
+      } catch (error) {
+        router.replace('/login');
+      }
+    };
+
+    checkAuth();
+
+    // Add event listener for when the page becomes visible again
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkAuth();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('visibilitychange', checkAuth);
+    };
+  }, [router]);
+
   // Initialize conversation ID from localStorage
   const [conversationId, setConversationId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
