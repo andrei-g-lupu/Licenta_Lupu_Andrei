@@ -14,13 +14,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Protect chat route
-  const protectedRoutes = ['/chat'];
+  // Protect chat route and its API endpoints
+  const protectedRoutes = ['/chat', '/api/chat', '/api/chat-history'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   if (isProtectedRoute) {
     if (!token) {
-      // Save the URL they tried to visit
+      // For API routes, return unauthorized response
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      // For other routes, redirect to login
       const url = new URL('/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
@@ -30,7 +34,13 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Update matcher to include protected routes
+// Update matcher to include all protected routes and their API endpoints
 export const config = {
-  matcher: ['/chat/:path*', '/login', '/register']
+  matcher: [
+    '/chat/:path*',
+    '/api/chat/:path*',
+    '/api/chat-history/:path*',
+    '/login',
+    '/register'
+  ]
 };
