@@ -119,7 +119,7 @@ For detailed pricing on training costs, as well as input and output costs for a 
 
 For a training file with 100,000 tokens trained over 3 epochs, the expected cost would be:
 
-    ~$0.90 USD with gpt-4o-mini-2024-07-18 after the free period ends on October 31, 2024.
+    ~$0.90 USD with ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5after the free period ends on October 31, 2024.
     ~$2.40 USD with gpt-3.5-turbo-0125.
 
 Check data formatting
@@ -167,7 +167,7 @@ client.fine_tuning.jobs.create(
     model="gpt-4o-mini-2024-07-18"
 )
 
-In this example, model is the name of the model you want to fine-tune. Note that only specific model snapshots (like gpt-4o-mini-2024-07-18 in this case) can be used for this parameter, as listed in our supported models. The training_file parameter is the file ID that was returned when the training file was uploaded to the OpenAI API. You can customize your fine-tuned model's name using the suffix parameter.
+In this example, model is the name of the model you want to fine-tune. Note that only specific model snapshots (like ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5in this case) can be used for this parameter, as listed in our supported models. The training_file parameter is the file ID that was returned when the training file was uploaded to the OpenAI API. You can customize your fine-tuned model's name using the suffix parameter.
 
 If you choose not to specify a method, the default is Supervised Fine-Tuning (SFT).
 
