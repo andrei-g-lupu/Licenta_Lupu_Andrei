@@ -4,11 +4,9 @@ import { Pool } from 'pg';
 import { cookies } from 'next/headers';
 import { decode } from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
-let DataAPIClient;
-if (typeof window === "undefined") {
-  DataAPIClient = require("@datastax/astra-db-ts").DataAPIClient;
-}
+import { DataAPIClient } from "@datastax/astra-db-ts";
 import * as dotenv from 'dotenv';
+import { ChatCompletionMessageParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam } from 'openai/resources/chat/completions';
 
 dotenv.config();
 
@@ -50,19 +48,68 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
 });
 
-// Wrap DB initialization in try-catch
-let client;
-let db;
-try {
-  client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN);
-  db = client.db(ASTRA_DB_API_ENDPOINT, { namespace: ASTRA_DB_NAMESPACE });
-  console.log("DB client initialized successfully");
-} catch (error) {
-  console.error("DB initialization error:", error);
+// Initialize AstraDB client
+let client: any;
+let db: any;
+
+// Move the initialization inside the POST handler
+const initializeAstraDB = () => {
+  if (!client) {
+    try {
+      client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN as string);
+      db = client.db(process.env.ASTRA_DB_API_ENDPOINT as string, { 
+        namespace: process.env.ASTRA_DB_NAMESPACE 
+      });
+      console.log("AstraDB client initialized successfully");
+      return true;
+    } catch (error) {
+      console.error("AstraDB initialization error:", error);
+      return false;
+    }
+  }
+  return true;
+};
+
+// Simple in-memory rate limiting
+const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
+const MAX_REQUESTS = 20; // 20 requests per minute
+const requestCounts = new Map<string, { count: number; timestamp: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const userRequests = requestCounts.get(ip);
+
+  if (!userRequests) {
+    requestCounts.set(ip, { count: 1, timestamp: now });
+    return false;
+  }
+
+  if (now - userRequests.timestamp > RATE_LIMIT_DURATION) {
+    // Reset if time window has passed
+    requestCounts.set(ip, { count: 1, timestamp: now });
+    return false;
+  }
+
+  if (userRequests.count >= MAX_REQUESTS) {
+    return true;
+  }
+
+  userRequests.count++;
+  return false;
 }
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || 'unknown';
+    
+    // Check rate limit
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     console.log("1. POST request received");
     const { messages, conversationId } = await req.json();
     
@@ -70,6 +117,9 @@ export async function POST(req: Request) {
       return new Response('Conversation ID is required', { status: 400 });
     }
     console.log("2. Using conversation ID:", conversationId);
+    
+    // Initialize AstraDB when needed
+    const isAstraInitialized = initializeAstraDB();
     
     // Get user from auth token
     const cookieStore = await cookies();
@@ -103,98 +153,143 @@ export async function POST(req: Request) {
     const userData = userResult.rows[0];
     console.log("7. Found user with email:", userData.email);
 
-    // Save user message with the conversation ID
+    // Save user message with the conversation ID and timestamp
+    const timestamp = new Date();
     const latestMessage = messages[messages.length - 1];
-    console.log("8. Saving user message to chat_history with conversation_id:", conversationId);
+    
     await pool.query(
-      'INSERT INTO chat_history (user_id, message_content, role, conversation_id) VALUES ($1, $2, $3, $4)',
-      [userData.id, latestMessage.content, latestMessage.role, conversationId]
+      'INSERT INTO chat_history (user_id, message_content, role, conversation_id, created_at) VALUES ($1, $2, $3, $4, $5)',
+      [userData.id, latestMessage.content, latestMessage.role, conversationId, timestamp]
     );
-    console.log("9. User message saved");
 
+    // 1. Obține contextul conversației anterioare
+    const historyResult = await pool.query(
+      'SELECT message_content, role FROM chat_history WHERE conversation_id = $1 ORDER BY created_at ASC',
+      [conversationId]
+    );
+    
+    const conversationContext = historyResult.rows
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.message_content}`)
+      .join('\n');
+
+    // 2. Folosește OpenAI pentru a genera un query îmbunătățit pentru căutarea vectorială
+    const queryEnhancementPrompt: ChatCompletionSystemMessageParam = {
+      role: "system",
+      content: `Ești un expert în Codul Fiscal al României. Sarcina ta este să transformi întrebarea utilizatorului într-o căutare explicită în Codul Fiscal.
+      Dacă întrebarea face referire la articole sau secțiuni menționate anterior, include-le explicit.
+      Dacă întrebarea este ambiguă, folosește contextul conversației pentru a o clarifica.
+      
+      Conversație anterioară:
+      ${conversationContext}
+      
+      Întrebare curentă: ${messages[messages.length - 1].content}
+      
+      Generează o versiune extinsă și explicită a întrebării pentru căutare.`
+    };
+
+    const enhancementResponse = await openai.chat.completions.create({
+      model: "ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5",
+      messages: [queryEnhancementPrompt],
+      temperature: 0.3,
+      max_tokens: 200
+    });
+
+    const enhancedQuery = enhancementResponse.choices[0].message.content;
+    console.log("Enhanced query:", enhancedQuery);
+
+    // 3. Folosește query-ul îmbunătățit pentru embedding și căutare
     let docContext = "";
-
     try {
-      console.log("10. Getting embedding for message:", latestMessage.content);
       const embedding = await openai.embeddings.create({
         model: "text-embedding-3-small",
-        input: latestMessage.content,
+        input: enhancedQuery, // Folosim query-ul îmbunătățit aici
         encoding_format: "float"
       });
-      console.log("11. Embedding created successfully");
 
       if (db) {
-        console.log("12. Querying vector database...");
         const collection = await db.collection(ASTRA_DB_COLLECTION);
+        
+        // 4. Îmbunătățim căutarea vectorială cu filtre și scoring mai bun
         const cursor = collection.find(null, {
           sort: { $vector: embedding.data[0].embedding },
-          limit: 5
+          limit: 5,
+          fields: ['text', 'metadata'] // Presupunând că ai și metadata în documente
         });
 
         const documents = await cursor.toArray();
         if (documents && documents.length > 0) {
-          const docsMap = documents.map(doc => doc.text);
-          docContext = docsMap.join("\n\n");
-          console.log("13. Vector DB context retrieved, length:", docContext.length);
-        } else {
-          console.log("13. No matching documents found in vector DB");
-          docContext = "Nu am găsit informații relevante pentru această întrebare în baza de date.";
+          // 5. Procesăm și ordonăm rezultatele pentru relevanță
+          const processedDocs = documents
+            .map(doc => ({
+              text: doc.text,
+              score: calculateRelevanceScore(doc, enhancedQuery)
+            }))
+            .sort((a, b) => b.score - a.score)
+            .map(doc => doc.text);
+
+          docContext = processedDocs.join("\n\n");
         }
-      } else {
-        console.warn("DB not initialized, skipping vector search");
-        docContext = "Baza de date nu este disponibilă momentan.";
       }
     } catch (dbError) {
       console.error("Vector DB Error:", dbError);
-      docContext = "A apărut o eroare în căutarea informațiilor.";
     }
 
-    console.log("14. Creating chat completion with context length:", docContext.length);
-    const template = {
+    // 6. Creăm un prompt mai inteligent pentru răspuns
+    const systemMessage: ChatCompletionSystemMessageParam = {
       role: "system",
-      content: `Ești un asistent AI care știe totul despre legislatia din Romania.
-Folosind contextul de mai jos, poți să-ți completezi cunoștințele despre legea din Romania.
-Contextul îți va furniza toate legile din Codul Muncii, Codul Fiscal si Codul Penal.
-Raspunde in propozitii ample. Intelege faptul ca in raspunsul tau nu poti sa te referi la alineate din context, deoarece utilizatorul nu are acces la context, daca acel context este relevant, include-l de asemenea in raspunsul tau.
+      content: `Ești un expert în Codul Fiscal al României.
 
-De fiecare dată când răspunzi:
+Contextul conversației anterioare:
+${conversationContext}
 
-Include și sursa informației tale.
-Dacă există un link către acea pagină, include-l de asemenea.
-Dacă contextul nu conține informațiile necesare, nu răspunde pe baza cunoștințelor tale existente și menționează că nu știi.
+Întrebare originală a utilizatorului: ${messages[messages.length - 1].content}
+Interpretarea extinsă a întrebării: ${enhancedQuery}
 
-Formatul răspunsurilor trebuie să folosească markdown unde este posibil și să nu conțină imagini.
+Contextul relevant din legislație:
+${docContext}
 
-Te rog să răspunzi doar pe baza acestui citat și să te referi la link-ul acestuia drept sursa. NU AI VOIE, REPET NU AI VOIE SA RASPUNZI DINAFARA SURSEI.
-        ------------
-        START CONTEXT
-        ${docContext}
-        END CONTEXT
-        ------------`
+Răspunde folosind informațiile din context și ține cont de:
+1. Referințele anterioare din conversație
+2. Interpretarea corectă a întrebării
+3. Informațiile specifice din legislație
+
+Răspunde în propoziții ample și include sursa informației.`
     };
 
-    console.log("15. Creating chat completion...");
+    // Formatăm mesajele cu tipurile corecte
+    const formattedMessages: ChatCompletionMessageParam[] = [
+      systemMessage,
+      ...messages.map(msg => {
+        if (msg.role === "system") {
+          return { role: "system", content: msg.content } as ChatCompletionSystemMessageParam;
+        }
+        return {
+          role: msg.role as "user" | "assistant",
+          content: msg.content
+        } as ChatCompletionUserMessageParam;
+      })
+    ];
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5",
       stream: true,
-      messages: [template, ...messages]
+      messages: formattedMessages
     });
-    console.log("16. AI response received");
 
     let fullResponse = '';
-    console.log("17. Setting up stream");
+    console.log("16. Setting up stream");
     const stream = OpenAIStream(response, {
       onToken: (token) => {
         fullResponse += token;
       },
       onCompletion: async (completion) => {
-        console.log("18. Saving AI response to chat_history with conversation_id:", conversationId);
         try {
+          // Save AI response with a slightly later timestamp
+          const aiTimestamp = new Date(timestamp.getTime() + 1);
           await pool.query(
-            'INSERT INTO chat_history (user_id, message_content, role, conversation_id) VALUES ($1, $2, $3, $4)',
-            [userData.id, fullResponse, 'assistant', conversationId]
+            'INSERT INTO chat_history (user_id, message_content, role, conversation_id, created_at) VALUES ($1, $2, $3, $4, $5)',
+            [userData.id, fullResponse, 'assistant', conversationId, aiTimestamp]
           );
-          console.log("19. AI response saved");
         } catch (error) {
           console.error("Error saving AI response:", error);
         }
@@ -206,4 +301,17 @@ Te rog să răspunzi doar pe baza acestui citat și să te referi la link-ul ace
     console.error("Detailed error:", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
+}
+
+// Funcție helper pentru calculul scorului de relevanță
+function calculateRelevanceScore(doc: any, query: string): number {
+  let score = 1.0;
+  
+  // Adaugă logică de scoring bazată pe:
+  // - Prezența cuvintelor cheie
+  // - Metadata (dacă există)
+  // - Lungimea documentului
+  // - Alte criterii relevante
+
+  return score;
 }

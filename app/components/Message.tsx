@@ -2,17 +2,29 @@ import React from 'react';
 import styles from './Message.module.css';
 
 interface MessageProps {
-  content: string;
-  role?: 'user' | 'assistant';
+  message: Message;
+  status?: 'sending' | 'sent' | 'error';
 }
 
-const Message: React.FC<MessageProps> = ({ content, role = 'assistant' }) => {
+const Message: React.FC<MessageProps> = ({ message, status }) => {
   return (
-    <div className={`${styles.message} ${styles[role]}`}>
-      {role === 'assistant' && (
+    <div className={`${styles.message} ${styles[message.role]}`}>
+      {message.role === 'assistant' && (
         <div className={styles.avatar}>AI</div>
       )}
-      <div className={styles.content}>{content}</div>
+      <div className={styles.content}>
+        {message.content}
+        {status === 'sending' && (
+          <span className="animate-pulse text-gray-400 text-sm ml-2">
+            Sending...
+          </span>
+        )}
+        {status === 'error' && (
+          <span className="text-red-500 text-sm ml-2">
+            Error sending message
+          </span>
+        )}
+      </div>
     </div>
   );
 };

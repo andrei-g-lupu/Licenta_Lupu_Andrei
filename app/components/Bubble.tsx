@@ -3,15 +3,20 @@ import { Message } from 'ai';
 
 interface BubbleProps {
   message: Message;
+  isLastInGroup?: boolean;
 }
 
-export default function Bubble({ message }: BubbleProps) {
+const Bubble: React.FC<BubbleProps> = React.memo(({ message, isLastInGroup = false }) => {
   const isUser = message.role === "user";
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
+    <div 
+      className={`flex ${isUser ? "justify-end" : "justify-start"} ${
+        isLastInGroup ? "mb-4" : "mb-2"
+      }`}
+    >
       <div
-        className={`max-w-[80%] p-4 rounded-lg ${
+        className={`max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 text-sm sm:text-base rounded-lg ${
           isUser
             ? "bg-blue-600 text-white rounded-br-none"
             : "bg-gray-100 text-gray-800 rounded-bl-none"
@@ -21,4 +26,8 @@ export default function Bubble({ message }: BubbleProps) {
       </div>
     </div>
   );
-}
+});
+
+Bubble.displayName = 'Bubble';
+
+export default Bubble;

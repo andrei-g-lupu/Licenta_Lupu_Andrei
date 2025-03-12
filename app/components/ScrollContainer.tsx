@@ -1,13 +1,23 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface ScrollContainerProps {
   children: React.ReactNode;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
 }
 
-const ScrollContainer: React.FC<ScrollContainerProps> = ({ children }) => {
+const ScrollContainer: React.FC<ScrollContainerProps> = ({ 
+  children, 
+  onLoadMore,
+  hasMore = false 
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onLoadMore) return
+
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
