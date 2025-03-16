@@ -1,8 +1,16 @@
 import React from 'react';
 import styles from './Message.module.css';
 
+// Definim mai întâi interfața Message
+interface MessageType {
+  id: string;
+  content: string;
+  role: string;
+}
+
+// Apoi o folosim în MessageProps
 interface MessageProps {
-  message: Message;
+  message: MessageType;
   status?: 'sending' | 'sent' | 'error';
 }
 

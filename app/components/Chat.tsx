@@ -27,8 +27,7 @@ const Chat: React.FC<ChatProps> = ({ messages }) => {
         {messages.map((message) => (
           <Message 
             key={message.id} 
-            content={message.content}
-            role={message.role}
+            message={message}
           />
         ))}
         <div ref={messagesEndRef} />

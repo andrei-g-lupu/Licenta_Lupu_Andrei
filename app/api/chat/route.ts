@@ -6,7 +6,7 @@ import { decode } from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
 import { DataAPIClient } from "@datastax/astra-db-ts";
 import * as dotenv from 'dotenv';
-import { ChatCompletionMessageParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam } from 'openai/resources/chat/completions';
+import { ChatCompletionMessageParam, ChatCompletionSystemMessageParam } from 'openai/resources/chat/completions';
 
 dotenv.config();
 
@@ -27,9 +27,8 @@ const {
   OPENAI_API_KEY,
 } = process.env;
 
-// Initialize PostgreSQL Pool
 const pool = new Pool({
-  connectionString: "postgresql://postgres.bqhtfgqaiidzsatkchao:Godofnaruto1!@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -45,29 +44,36 @@ console.log("API Key present:", !!process.env.OPENAI_API_KEY);
 console.log("Astra DB Token present:", !!process.env.ASTRA_DB_APPLICATION_TOKEN);
 
 const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 // Initialize AstraDB client
-let client: any;
-let db: any;
+let client: DataAPIClient | null = null;
+let db: any = null;
 
-// Move the initialization inside the POST handler
-const initializeAstraDB = () => {
-  if (!client) {
-    try {
-      client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN as string);
-      db = client.db(process.env.ASTRA_DB_API_ENDPOINT as string, { 
-        namespace: process.env.ASTRA_DB_NAMESPACE 
-      });
-      console.log("AstraDB client initialized successfully");
-      return true;
-    } catch (error) {
-      console.error("AstraDB initialization error:", error);
-      return false;
-    }
+const initializeAstraDB = async () => {
+  try {
+    console.log("Initializing AstraDB with:", {
+      endpoint: process.env.ASTRA_DB_API_ENDPOINT?.substring(0, 20) + "...",
+      namespace: process.env.ASTRA_DB_NAMESPACE,
+      collection: process.env.ASTRA_DB_COLLECTION
+    });
+
+    client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN as string);
+    db = client.db(process.env.ASTRA_DB_API_ENDPOINT as string, { 
+      namespace: process.env.ASTRA_DB_NAMESPACE 
+    });
+    
+    // Verificăm explicit dacă putem accesa colecția
+    const collection = await db.collection(process.env.ASTRA_DB_COLLECTION as string);
+    const testQuery = await collection.find({}, { limit: 1 }).toArray();
+    console.log("Test query result:", testQuery.length > 0 ? "Success" : "No documents found");
+    
+    return true;
+  } catch (error) {
+    console.error("AstraDB initialization error:", error);
+    return false;
   }
-  return true;
 };
 
 // Simple in-memory rate limiting
@@ -100,191 +106,194 @@ function isRateLimited(ip: string): boolean {
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'unknown';
-    
-    // Check rate limit
-    if (isRateLimited(ip)) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
+    console.log("1. Starting request processing");
+    const { messages, conversationId } = await req.json();
+
+    // Verificăm dacă conversationId este valid
+    if (!conversationId || conversationId.length < 10) {
+      console.error("Invalid conversation ID:", conversationId);
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
     }
 
-    console.log("1. POST request received");
-    const { messages, conversationId } = await req.json();
-    
-    if (!conversationId) {
-      return new Response('Conversation ID is required', { status: 400 });
-    }
-    console.log("2. Using conversation ID:", conversationId);
-    
-    // Initialize AstraDB when needed
-    const isAstraInitialized = initializeAstraDB();
-    
     // Get user from auth token
     const cookieStore = await cookies();
     const authToken = cookieStore.get('token')?.value;
-    console.log("3. Auth token:", authToken ? "Found" : "Not found");
-    
+
     if (!authToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Decode the JWT token to get user info
     const decodedToken = decode(authToken) as { email?: string } | null;
-    console.log("4. Decoded token:", decodedToken ? "Success" : "Failed");
-
     if (!decodedToken?.email) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user data from database using email
-    console.log("5. Querying user data for email:", decodedToken.email);
+    // Get user data
     const userResult = await pool.query(
       'SELECT id, email FROM users WHERE email = $1',
       [decodedToken.email]
     );
-    console.log("6. User query result rows:", userResult.rows.length);
 
     if (userResult.rows.length === 0) {
-      return new Response('User not found', { status: 404 });
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const userData = userResult.rows[0];
-    console.log("7. Found user with email:", userData.email);
-
-    // Save user message with the conversation ID and timestamp
     const timestamp = new Date();
-    const latestMessage = messages[messages.length - 1];
-    
+
+    // Save user message
     await pool.query(
       'INSERT INTO chat_history (user_id, message_content, role, conversation_id, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [userData.id, latestMessage.content, latestMessage.role, conversationId, timestamp]
+      [userData.id, messages[messages.length - 1].content, 'user', conversationId, timestamp]
     );
 
-    // 1. Obține contextul conversației anterioare
-    const historyResult = await pool.query(
-      'SELECT message_content, role FROM chat_history WHERE conversation_id = $1 ORDER BY created_at ASC',
+    // După autentificare și înainte de a încerca să obținem contextul conversațional
+    let conversationContext = '';
+
+    // Verificăm mai întâi dacă există conversația
+    const conversationCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM chat_history WHERE conversation_id = $1',
       [conversationId]
     );
-    
-    const conversationContext = historyResult.rows
-      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.message_content}`)
-      .join('\n');
 
-    // 2. Folosește OpenAI pentru a genera un query îmbunătățit pentru căutarea vectorială
+    console.log("Checking if conversation exists:", {
+      conversationId,
+      exists: conversationCheck.rows[0].count > 0
+    });
+
+    // Doar dacă există conversația, obținem contextul
+    if (conversationCheck.rows[0].count > 0) {
+      console.log("Conversation exists, fetching context...");
+      const historyResult = await pool.query(
+        `SELECT message_content, role, created_at 
+         FROM chat_history 
+         WHERE conversation_id = $1 
+         AND created_at >= NOW() - INTERVAL '1 hour'
+         ORDER BY created_at ASC`,
+        [conversationId]
+      );
+      
+      conversationContext = historyResult.rows
+        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.message_content}`)
+        .join('\n');
+
+      console.log("Context loaded with", historyResult.rows.length, "messages");
+    } else {
+      console.log("New conversation started, no context to load");
+      conversationContext = 'Aceasta este o conversație nouă.';
+    }
+
+    // Folosim conversationContext în prompturi doar dacă există
     const queryEnhancementPrompt: ChatCompletionSystemMessageParam = {
       role: "system",
-      content: `Ești un expert în Codul Fiscal al României. Sarcina ta este să transformi întrebarea utilizatorului într-o căutare explicită în Codul Fiscal.
-      Dacă întrebarea face referire la articole sau secțiuni menționate anterior, include-le explicit.
-      Dacă întrebarea este ambiguă, folosește contextul conversației pentru a o clarifica.
+      content: `Ești un expert în Codul Fiscal al României. 
+      Sarcina ta este să transformi întrebarea utilizatorului într-o căutare mai detaliată și explicită.
       
-      Conversație anterioară:
-      ${conversationContext}
+      ${conversationContext ? `Conversație anterioară:\n${conversationContext}\n` : ''}
       
-      Întrebare curentă: ${messages[messages.length - 1].content}
+      Întrebarea utilizatorului: ${messages[messages.length - 1].content}
       
-      Generează o versiune extinsă și explicită a întrebării pentru căutare.`
+      Reformulează întrebarea pentru o căutare mai precisă:`
     };
 
     const enhancementResponse = await openai.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5",
+      model: "gpt-4o-mini",
       messages: [queryEnhancementPrompt],
       temperature: 0.3,
       max_tokens: 200
     });
 
     const enhancedQuery = enhancementResponse.choices[0].message.content;
-    console.log("Enhanced query:", enhancedQuery);
+    console.log("2. Enhanced query created:", enhancedQuery);
 
-    // 3. Folosește query-ul îmbunătățit pentru embedding și căutare
-    let docContext = "";
+    // Verificăm inițializarea AstraDB
+    console.log("3. Checking AstraDB initialization...");
+    const isAstraInitialized = await initializeAstraDB();
+    console.log("4. AstraDB initialized:", isAstraInitialized);
+
+    // 2. Create embedding and search in AstraDB
+    let relevantContext = "";
     try {
+      console.log("Creating embedding for query:", enhancedQuery);
       const embedding = await openai.embeddings.create({
         model: "text-embedding-3-small",
-        input: enhancedQuery, // Folosim query-ul îmbunătățit aici
+        input: enhancedQuery,
         encoding_format: "float"
       });
 
+      console.log("Embedding created, attempting DB search");
+      
+      await initializeAstraDB(); // Reinițializăm explicit
+
       if (db) {
-        const collection = await db.collection(ASTRA_DB_COLLECTION);
+        const collection = await db.collection(process.env.ASTRA_DB_COLLECTION as string);
         
-        // 4. Îmbunătățim căutarea vectorială cu filtre și scoring mai bun
-        const cursor = collection.find(null, {
-          sort: { $vector: embedding.data[0].embedding },
-          limit: 5,
-          fields: ['text', 'metadata'] // Presupunând că ai și metadata în documente
-        });
+        // Modificăm query-ul pentru a fi mai permisiv
+        const cursor = collection.find(
+          {},  // No initial filter
+          {
+            sort: { $vector: embedding.data[0].embedding },
+            limit: 10, // Mărim limita
+            fields: ['text', 'metadata']
+          }
+        );
 
         const documents = await cursor.toArray();
+        console.log("Found documents:", documents.length);
+        
         if (documents && documents.length > 0) {
-          // 5. Procesăm și ordonăm rezultatele pentru relevanță
-          const processedDocs = documents
-            .map(doc => ({
-              text: doc.text,
-              score: calculateRelevanceScore(doc, enhancedQuery)
-            }))
-            .sort((a, b) => b.score - a.score)
-            .map(doc => doc.text);
-
-          docContext = processedDocs.join("\n\n");
+          // Afișăm primele câteva caractere din fiecare document pentru debugging
+          documents.forEach((doc, idx) => {
+            console.log(`Doc ${idx}: ${doc.text.substring(0, 100)}...`);
+          });
+          
+          relevantContext = documents
+            .map(doc => doc.text)
+            .join("\n\n");
+        } else {
+          console.log("No documents found in AstraDB");
         }
       }
     } catch (dbError) {
-      console.error("Vector DB Error:", dbError);
+      console.error("Detailed Vector DB Error:", dbError);
     }
 
-    // 6. Creăm un prompt mai inteligent pentru răspuns
-    const systemMessage: ChatCompletionSystemMessageParam = {
+    // 3. Final interaction with ChatGPT
+    const finalPrompt: ChatCompletionSystemMessageParam = {
       role: "system",
-      content: `Ești un expert în Codul Fiscal al României.
+      content: `Ești un expert în Codul Fiscal al României. 
+      
+      Context relevant din legislație:
+      ${relevantContext}
 
-Contextul conversației anterioare:
-${conversationContext}
+      Conversație anterioară:
+      ${conversationContext}
 
-Întrebare originală a utilizatorului: ${messages[messages.length - 1].content}
-Interpretarea extinsă a întrebării: ${enhancedQuery}
+      Întrebarea originală: ${messages[messages.length - 1].content}
+      Întrebarea detaliată: ${enhancedQuery}
 
-Contextul relevant din legislație:
-${docContext}
-
-Răspunde folosind informațiile din context și ține cont de:
-1. Referințele anterioare din conversație
-2. Interpretarea corectă a întrebării
-3. Informațiile specifice din legislație
-
-Răspunde în propoziții ample și include sursa informației.`
+      Răspunde folosind informațiile din context și menționează articolele specifice din Codul Fiscal. 
+      Foarte important: Daca nu este despre codul fiscal, spune ca tu esti antrenat doar pe Codul fiscal si happy sa raspunzi la intrebari despre acesta.`
     };
 
-    // Formatăm mesajele cu tipurile corecte
-    const formattedMessages: ChatCompletionMessageParam[] = [
-      systemMessage,
-      ...messages.map(msg => {
-        if (msg.role === "system") {
-          return { role: "system", content: msg.content } as ChatCompletionSystemMessageParam;
-        }
-        return {
-          role: msg.role as "user" | "assistant",
-          content: msg.content
-        } as ChatCompletionUserMessageParam;
-      })
+    const finalMessages: ChatCompletionMessageParam[] = [
+      finalPrompt,
+      ...messages
     ];
 
     const response = await openai.chat.completions.create({
-      model: "ft:gpt-4o-mini-2024-07-18:personal::B2iwRLc5",
+      model: "gpt-4o-mini",
       stream: true,
-      messages: formattedMessages
+      messages: finalMessages
     });
 
     let fullResponse = '';
-    console.log("16. Setting up stream");
     const stream = OpenAIStream(response, {
       onToken: (token) => {
         fullResponse += token;
       },
       onCompletion: async (completion) => {
         try {
-          // Save AI response with a slightly later timestamp
           const aiTimestamp = new Date(timestamp.getTime() + 1);
           await pool.query(
             'INSERT INTO chat_history (user_id, message_content, role, conversation_id, created_at) VALUES ($1, $2, $3, $4, $5)',

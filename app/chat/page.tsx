@@ -43,17 +43,31 @@ const ChatPage: React.FC = () => {
   const [isThinking, setIsThinking] = useState(false);
   const [isStartingNewChat, setIsStartingNewChat] = useState(false);
 
-  // Initialize conversation ID
+  // Modificăm logica de inițializare a conversationId
   const [conversationId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
+      // Verificăm dacă avem un ID valid în localStorage
       const saved = localStorage.getItem('currentConversationId');
-      if (saved) return saved;
-      const newId = crypto.randomUUID();
-      localStorage.setItem('currentConversationId', newId);
-      return newId;
+      // Dacă nu avem ID sau dacă pagina tocmai s-a încărcat (nu din cache),
+      // generăm unul nou
+      if (!saved || !document.referrer) {
+        const newId = crypto.randomUUID();
+        localStorage.setItem('currentConversationId', newId);
+        return newId;
+      }
+      return saved;
     }
     return '';
   });
+
+  // Adăugăm un effect pentru a monitoriza schimbările de conversație
+  useEffect(() => {
+    console.log("Current conversation ID:", conversationId);
+    // Opțional: putem verifica aici dacă ID-ul este valid
+    if (conversationId) {
+      console.log("Starting new conversation with ID:", conversationId);
+    }
+  }, [conversationId]);
 
   // Folosim handleSubmit din useChat
   const { messages, input, handleInputChange, handleSubmit, append, setMessages } = useChat({
@@ -142,14 +156,22 @@ const ChatPage: React.FC = () => {
   }, [conversationId, setMessages]);
 
   const startNewChat = async () => {
-    setIsStartingNewChat(true); // Activăm loading screen-ul imediat
+    setIsStartingNewChat(true);
     
-    // Folosim setTimeout pentru a ne asigura că loading screen-ul este afișat
-    setTimeout(() => {
-      setMessages([]); // Curățăm mesajele
-      router.push('/chat'); // Navigăm către pagina de chat nouă
-      setIsStartingNewChat(false); // Dezactivăm loading screen-ul
-    }, 100);
+    // Generăm un nou ID de conversație
+    const newConversationId = crypto.randomUUID();
+    
+    // Curățăm localStorage de ID-ul vechi și setăm unul nou
+    localStorage.removeItem('currentConversationId');
+    localStorage.setItem('currentConversationId', newConversationId);
+    
+    // Curățăm mesajele și resetăm starea
+    setMessages([]);
+    
+    // Opțional: Putem să forțăm un refresh al paginii pentru un restart complet
+    window.location.href = '/chat';
+    
+    setIsStartingNewChat(false);
   };
 
   // Render messages
