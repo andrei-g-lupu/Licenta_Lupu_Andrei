@@ -34,27 +34,44 @@ console.log('Database URL check:', {
   preview: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'not set'
 });
 
-// Modify the pool creation
+// Modify the pool configuration with more generous timeouts and retry logic
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  host: process.env.POSTGRES_HOST,
-  port: parseInt(process.env.POSTGRES_PORT || '6543'),
-  ssl: process.env.POSTGRES_SSL === 'true' ? {
-    rejectUnauthorized: false
-  } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionString: "postgresql://postgres.bqhtfgqaiidzsatkchao:Godofnaruto1!@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+  ssl: { rejectUnauthorized: false },
+  max: 10, // Reduce max connections
+  idleTimeoutMillis: 60000, // Increase idle timeout to 1 minute
+  connectionTimeoutMillis: 10000 // Increase connection timeout to 10 seconds
 });
 
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
-});
-
+// Add connection error handling
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Unexpected PostgreSQL error:', err);
+  // Attempt to reconnect
+  setTimeout(() => {
+    console.log('Attempting to reconnect to PostgreSQL...');
+    pool.connect();
+  }, 5000);
 });
+
+// Add a connection test function
+const testDatabaseConnection = async () => {
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      const client = await pool.connect();
+      console.log('Database connection successful');
+      client.release();
+      return true;
+    } catch (error) {
+      console.error(`Connection attempt failed (${retries} retries left):`, error);
+      retries--;
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before retrying
+      }
+    }
+  }
+  return false;
+};
 
 console.log("API Key present:", !!process.env.OPENAI_API_KEY);
 console.log("Astra DB Token present:", !!process.env.ASTRA_DB_APPLICATION_TOKEN);
@@ -137,11 +154,13 @@ function isRateLimited(ip: string): boolean {
 
 export async function POST(req: Request) {
   try {
-    // Add connection check at the start of each request
     console.log('Attempting database connection...');
-    const client = await pool.connect();
-    console.log('Database connection successful');
-    client.release();
+    const isConnected = await testDatabaseConnection();
+    
+    if (!isConnected) {
+      console.error('Failed to establish database connection after retries');
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 503 });
+    }
 
     console.log("1. Starting request processing");
     const { messages, conversationId } = await req.json();
