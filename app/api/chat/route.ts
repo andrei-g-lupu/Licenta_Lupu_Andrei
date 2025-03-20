@@ -29,15 +29,19 @@ const {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 pool.on('connect', () => {
-  console.log('Connected to PostgreSQL');
+  console.log('Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected PostgreSQL error:', err);
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
 });
 
 console.log("API Key present:", !!process.env.OPENAI_API_KEY);
@@ -106,6 +110,19 @@ function isRateLimited(ip: string): boolean {
 
 export async function POST(req: Request) {
   try {
+    // Verify database connection first
+    try {
+      const client = await pool.connect();
+      client.release();
+      console.log('Database connection verified');
+    } catch (dbError) {
+      console.error('Database connection failed:', dbError);
+      return NextResponse.json(
+        { error: 'Database connection failed', details: dbError.message },
+        { status: 500 }
+      );
+    }
+
     console.log("1. Starting request processing");
     const { messages, conversationId } = await req.json();
 
