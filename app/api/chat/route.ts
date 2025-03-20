@@ -27,9 +27,21 @@ const {
   OPENAI_API_KEY,
 } = process.env;
 
+// Add this debug logging
+console.log('Database URL check:', {
+  exists: !!process.env.DATABASE_URL,
+  // Log first 20 chars of URL if it exists (for security)
+  preview: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 20)}...` : 'not set'
+});
+
+// Modify the pool creation
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  host: process.env.POSTGRES_HOST,
+  port: parseInt(process.env.POSTGRES_PORT || '6543'),
+  ssl: process.env.POSTGRES_SSL === 'true' ? {
+    rejectUnauthorized: false
+  } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
@@ -108,20 +120,28 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+// Add immediate connection test
+(async () => {
+  try {
+    const client = await pool.connect();
+    console.log('Initial database connection test successful');
+    client.release();
+  } catch (error) {
+    console.error('Initial database connection test failed:', {
+      error: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+  }
+})();
+
 export async function POST(req: Request) {
   try {
-    // Verify database connection first
-    try {
-      const client = await pool.connect();
-      client.release();
-      console.log('Database connection verified');
-    } catch (dbError) {
-      console.error('Database connection failed:', dbError);
-      return NextResponse.json(
-        { error: 'Database connection failed', details: dbError.message },
-        { status: 500 }
-      );
-    }
+    // Add connection check at the start of each request
+    console.log('Attempting database connection...');
+    const client = await pool.connect();
+    console.log('Database connection successful');
+    client.release();
 
     console.log("1. Starting request processing");
     const { messages, conversationId } = await req.json();
