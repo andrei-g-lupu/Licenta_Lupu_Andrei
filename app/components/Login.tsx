@@ -43,8 +43,15 @@ const Login = () => {
         return;
       }
 
-      // Use the stored callback URL
-      window.location.href = callbackUrl;
+      // Fetch user info (or decode token if you store role in JWT)
+      const userInfoRes = await fetch('/api/me', { credentials: 'include' });
+      const userInfo = await userInfoRes.json();
+
+      if (userInfo.role === 'admin') {
+        window.location.href = '/admin';
+      } else {
+        window.location.href = '/chat';
+      }
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');

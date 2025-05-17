@@ -224,8 +224,9 @@ export async function POST(req: Request) {
         `SELECT message_content, role, created_at 
          FROM chat_history 
          WHERE conversation_id = $1 
-         AND created_at >= NOW() - INTERVAL '1 hour'
-         ORDER BY created_at ASC`,
+         AND created_at >= NOW() - INTERVAL '30 minutes'
+         ORDER BY created_at DESC
+         LIMIT 5`,
         [conversationId]
       );
       
@@ -286,11 +287,11 @@ export async function POST(req: Request) {
         
         // Modificăm query-ul pentru a fi mai permisiv
         const cursor = collection.find(
-          {},  // No initial filter
+          {},
           {
             sort: { $vector: embedding.data[0].embedding },
-            limit: 10, // Mărim limita
-            fields: ['text', 'metadata']
+            limit: 5, // Reduce from 10 to 5
+            fields: ['text']  // Only get text field
           }
         );
 
@@ -340,7 +341,11 @@ export async function POST(req: Request) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       stream: true,
-      messages: finalMessages
+      messages: finalMessages,
+      temperature: 0.7,
+      presence_penalty: 0,
+      frequency_penalty: 0,
+      max_tokens: 2000
     });
 
     let fullResponse = '';
