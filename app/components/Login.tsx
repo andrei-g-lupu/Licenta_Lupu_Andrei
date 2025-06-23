@@ -43,14 +43,19 @@ const Login = () => {
         return;
       }
 
-      // Fetch user info (or decode token if you store role in JWT)
+      // Store token in localStorage for client-side auth
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
+      // Fetch user info
       const userInfoRes = await fetch('/api/me', { credentials: 'include' });
       const userInfo = await userInfoRes.json();
 
       if (userInfo.role === 'admin') {
-        window.location.href = '/admin';
+        router.push('/admin/dashboard');
       } else {
-        window.location.href = '/chat';
+        router.push(callbackUrl);
       }
     } catch (err) {
       console.error('Login Error:', err);

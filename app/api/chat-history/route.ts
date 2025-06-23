@@ -4,7 +4,7 @@ import { decode } from 'jsonwebtoken';
 import { NextResponse } from 'next/server';
 
 const pool = new Pool({
-  connectionString: "postgresql://postgres.bqhtfgqaiidzsatkchao:Godofnaruto1!@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 

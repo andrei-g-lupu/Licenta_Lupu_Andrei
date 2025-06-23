@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 
 export const useMessageRetry = () => {
   const [failedMessages, setFailedMessages] = useState<Set<string>>(new Set());
-
+  
   const retryMessage = useCallback(async (messageId: string, sendFn: () => Promise<void>) => {
     try {
       await sendFn();
@@ -13,7 +13,7 @@ export const useMessageRetry = () => {
       });
     } catch (error) {
       console.error('Retry failed:', error);
-      // Implement exponential backoff here
+
     }
   }, []);
 

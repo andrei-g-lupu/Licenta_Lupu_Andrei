@@ -36,7 +36,7 @@ console.log('Database URL check:', {
 
 // Modify the pool configuration with more generous timeouts and retry logic
 const pool = new Pool({
-  connectionString: "postgresql://postgres.bqhtfgqaiidzsatkchao:Godofnaruto1!@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   max: 10, // Reduce max connections
   idleTimeoutMillis: 60000, // Increase idle timeout to 1 minute

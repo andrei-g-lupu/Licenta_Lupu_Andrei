@@ -14,6 +14,7 @@ interface User {
   username: string;
   email: string;
   password_hash: string;
+  role?: string;
 }
 
 export async function POST(request: Request) {
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     // Fetch user from the database
     const res = await pool.query<User>(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT id, username, email, password_hash, role FROM users WHERE email = $1',
       [email]
     );
 
@@ -55,15 +56,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate JWT
+    // Generate JWT with role information
     const token = jwt.sign(
-      { id: user.id, email: user.email, username: user.username },
+      { 
+        id: user.id, 
+        email: user.email, 
+        username: user.username,
+        role: user.role || 'user' // Include role in JWT token
+      },
       process.env.JWT_SECRET as string,
       { expiresIn: '1h' }
     );
 
-    // Set HTTP-only cookie
-    const response = NextResponse.json({ message: 'Login successful.' });
+    // Set HTTP-only cookie and include token in response
+    const response = NextResponse.json({ 
+      message: 'Login successful.',
+      token: token // Include token in response body for client-side storage
+    });
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

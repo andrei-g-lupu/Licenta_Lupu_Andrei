@@ -1,14 +1,17 @@
 "use client"
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Image from "next/image";
 import { useChat } from "ai/react"
 import { Message } from "ai"
 import { useRouter } from 'next/navigation';
+import { Menu } from 'lucide-react';
 import GPTlogo from "../public/Unchiul Steli.png";   
 import Bubble from "../components/Bubble";
 import LoadingBubble from "../components/LoadingBubble";
 import PromptSuggestionRow from "../components/PromptSuggestionRow";
 import DisconnectButton from "../components/DisconnectButton";
+import ChatHistoryDrawer from "../components/ChatHistoryDrawer";
+import MobileMenuButton from "../components/MobileMenuButton";
 
 // Adăugăm înapoi ThinkingBubble component
 const ThinkingBubble: React.FC = () => {
@@ -42,9 +45,13 @@ const ChatPage: React.FC = () => {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isStartingNewChat, setIsStartingNewChat] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const conversationIdRef = useRef<string | null>(null);
+  const isLoadingConversationRef = useRef(false);
+  const isLoadingInitialRef = useRef(false);
 
   // Modificăm logica de inițializare a conversationId
-  const [conversationId] = useState<string>(() => {
+  const [conversationId, setConversationId] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       // Verificăm dacă avem un ID valid în localStorage
       const saved = localStorage.getItem('currentConversationId');
@@ -53,8 +60,10 @@ const ChatPage: React.FC = () => {
       if (!saved || !document.referrer) {
         const newId = crypto.randomUUID();
         localStorage.setItem('currentConversationId', newId);
+        conversationIdRef.current = newId;
         return newId;
       }
+      conversationIdRef.current = saved;
       return saved;
     }
     return '';
@@ -66,8 +75,17 @@ const ChatPage: React.FC = () => {
     // Opțional: putem verifica aici dacă ID-ul este valid
     if (conversationId) {
       console.log("Starting new conversation with ID:", conversationId);
+      conversationIdRef.current = conversationId;
     }
   }, [conversationId]);
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      isLoadingConversationRef.current = false;
+      isLoadingInitialRef.current = false;
+    };
+  }, []);
 
   // Folosim handleSubmit din useChat
   const { messages, input, handleInputChange, handleSubmit, append, setMessages } = useChat({
@@ -75,11 +93,18 @@ const ChatPage: React.FC = () => {
     initialMessages,
     body: { conversationId },
     onResponse: (response) => {
+      console.log(`Response received for conversation: ${conversationId}`);
       localStorage.setItem('currentConversationId', conversationId);
       setIsThinking(false);
     },
     onFinish: () => {
+      console.log(`Response finished for conversation: ${conversationId}`);
       setIsThinking(false);
+    },
+    onError: (error) => {
+      console.error('Chat error:', error);
+      setIsThinking(false);
+      setError('Failed to send message');
     }
   });
 
@@ -111,16 +136,22 @@ const ChatPage: React.FC = () => {
     checkAuth();
   }, [router]);
 
-  // Load initial messages effect
+  // Load initial messages effect - optimized to prevent loops
   useEffect(() => {
     const loadInitialMessages = async () => {
-      if (!conversationId) return;
+      if (!conversationId || isLoadingInitialRef.current || isLoadingConversationRef.current) return;
+      
+      console.log(`Loading initial messages for conversation: ${conversationId}`);
+      isLoadingInitialRef.current = true;
       
       try {
         setIsLoading(true);
         const response = await fetch(
           `/api/chat-history?conversationId=${conversationId}`,
-          { credentials: 'include' }
+          { 
+            credentials: 'include',
+            headers: { 'Cache-Control': 'no-cache' }
+          }
         );
         
         if (response.ok) {
@@ -129,19 +160,33 @@ const ChatPage: React.FC = () => {
             (conv: any) => conv.conversation_id === conversationId
           );
           
-          if (existingConversation) {
+          if (existingConversation && existingConversation.messages) {
             // Formatăm mesajele și ne asigurăm că sunt în ordinea corectă
             const formattedMessages = existingConversation.messages
               .map((msg: any) => ({
-                id: msg.id,
+                id: msg.id || crypto.randomUUID(),
                 content: msg.message_content,
                 role: msg.role as "user" | "assistant",
                 createdAt: new Date(msg.created_at).getTime()
               }))
               .sort((a, b) => a.createdAt - b.createdAt);
 
-            setInitialMessages(formattedMessages);
-            setMessages(formattedMessages);
+            console.log(`Loaded ${formattedMessages.length} initial messages for conversation ${conversationId}`);
+            
+            // Only update if messages are different to prevent loops
+            const currentMessagesString = JSON.stringify(messages.map(m => ({ id: m.id, content: m.content, role: m.role })));
+            const newMessagesString = JSON.stringify(formattedMessages.map(m => ({ id: m.id, content: m.content, role: m.role })));
+            
+            if (currentMessagesString !== newMessagesString) {
+              setInitialMessages(formattedMessages);
+              setMessages(formattedMessages);
+            }
+          } else {
+            console.log(`No initial messages found for conversation ${conversationId}`);
+            if (initialMessages.length > 0 || messages.length > 0) {
+              setInitialMessages([]);
+              setMessages([]);
+            }
           }
         }
       } catch (error) {
@@ -149,13 +194,16 @@ const ChatPage: React.FC = () => {
         setError('Failed to load chat history');
       } finally {
         setIsLoading(false);
+        isLoadingInitialRef.current = false;
       }
     };
 
-    loadInitialMessages();
-  }, [conversationId, setMessages]);
+    // Add a small delay to prevent rapid successive calls
+    const timeoutId = setTimeout(loadInitialMessages, 100);
+    return () => clearTimeout(timeoutId);
+  }, [conversationId]); // Only depend on conversationId
 
-  const startNewChat = async () => {
+  const startNewChat = useCallback(async () => {
     setIsStartingNewChat(true);
     
     // Generăm un nou ID de conversație
@@ -165,14 +213,86 @@ const ChatPage: React.FC = () => {
     localStorage.removeItem('currentConversationId');
     localStorage.setItem('currentConversationId', newConversationId);
     
+    // Actualizăm conversationId în state
+    setConversationId(newConversationId);
+    
     // Curățăm mesajele și resetăm starea
     setMessages([]);
-    
-    // Opțional: Putem să forțăm un refresh al paginii pentru un restart complet
-    window.location.href = '/chat';
+    setInitialMessages([]);
     
     setIsStartingNewChat(false);
-  };
+  }, [setMessages]);
+
+  const handleSelectConversation = useCallback(async (selectedConversationId: string) => {
+    if (selectedConversationId === conversationId || isLoadingConversationRef.current) return;
+    
+    console.log(`Switching to conversation: ${selectedConversationId} from ${conversationId}`);
+    
+    isLoadingConversationRef.current = true;
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // First, update the conversation ID immediately to prevent multiple clicks
+      setConversationId(selectedConversationId);
+      conversationIdRef.current = selectedConversationId;
+      localStorage.setItem('currentConversationId', selectedConversationId);
+      
+      // Then load the messages for this conversation
+      const response = await fetch(
+        `/api/chat-history?conversationId=${selectedConversationId}`,
+        { 
+          credentials: 'include',
+          headers: { 'Cache-Control': 'no-cache' }
+        }
+      );
+      
+      if (response.ok) {
+        const history = await response.json();
+        const existingConversation = history.find(
+          (conv: any) => conv.conversation_id === selectedConversationId
+        );
+        
+        if (existingConversation && existingConversation.messages) {
+          const formattedMessages = existingConversation.messages
+            .map((msg: any) => ({
+              id: msg.id || crypto.randomUUID(),
+              content: msg.message_content,
+              role: msg.role as "user" | "assistant",
+              createdAt: new Date(msg.created_at).getTime()
+            }))
+            .sort((a, b) => a.createdAt - b.createdAt);
+
+          console.log(`Loaded ${formattedMessages.length} messages for conversation ${selectedConversationId}`);
+          
+          // Clear current messages first, then set new ones
+          setMessages([]);
+          setInitialMessages([]);
+          
+          // Use setTimeout to ensure state is cleared before setting new messages
+          setTimeout(() => {
+            setInitialMessages(formattedMessages);
+            setMessages(formattedMessages);
+          }, 50);
+        } else {
+          console.log(`No messages found for conversation ${selectedConversationId}`);
+          setInitialMessages([]);
+          setMessages([]);
+        }
+      } else {
+        console.error('Failed to fetch conversation history:', response.status);
+        setError('Failed to load conversation');
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+      setError('Failed to load conversation');
+    } finally {
+      setTimeout(() => {
+        setIsLoading(false);
+        isLoadingConversationRef.current = false;
+      }, 100);
+    }
+  }, [conversationId, setMessages]);
 
   // Render messages
   const renderMessages = () => {
@@ -230,15 +350,29 @@ const ChatPage: React.FC = () => {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-4 sm:p-6">
+      <ChatHistoryDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSelectConversation={handleSelectConversation}
+        currentConversationId={conversationId}
+      />
+      
       <div className="w-full flex justify-between items-center p-2 sm:p-4">
-        <DisconnectButton />
-        <button
-          onClick={startNewChat}
-          className="absolute top-4 px-3 sm:px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
-          disabled={isStartingNewChat}
-        >
-          Chat Nou
-        </button>
+        <div className="flex items-center space-x-2">
+          <MobileMenuButton
+            onClick={() => setIsDrawerOpen(true)}
+          />
+          <button
+            onClick={startNewChat}
+            className="px-3 sm:px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+            disabled={isStartingNewChat}
+          >
+            Chat Nou
+          </button>
+        </div>
+        <div className="flex items-center">
+          <DisconnectButton />
+        </div>
       </div>
 
       <div className="relative flex place-items-center mt-16 sm:mt-0">
