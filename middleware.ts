@@ -24,8 +24,21 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
+  // Redirect /admin to /admin/dashboard since we consolidated admin functionality
+  if (pathname === '/admin') {
+    const response = NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return response;
+  }
+
   // Protect chat route and its API endpoints
-  const protectedRoutes = ['/chat', '/api/chat', '/api/chat-history'];
+  const protectedRoutes = [
+    '/chat', 
+    '/api/chat', 
+    '/api/chat-history', 
+    '/admin', 
+    '/api/admin'
+  ];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   if (isProtectedRoute) {
@@ -62,6 +75,8 @@ export const config = {
     '/chat/:path*',
     '/api/chat/:path*',
     '/api/chat-history/:path*',
+    '/admin/:path*',
+    '/api/admin/:path*',
     '/login',
     '/register'
   ]

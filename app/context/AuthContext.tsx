@@ -2,10 +2,11 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
-
 interface User {
-  userId: number;
+  id: number;
+  email: string;
   username: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -28,27 +29,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    const checkAuth = async () => {
       try {
-        const decoded: User = jwtDecode(token);
-        setUser(decoded);
+        // First try to get user info from /api/me endpoint
+        const response = await fetch('/api/me', { credentials: 'include' });
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          return;
+        }
+
+        // Fallback to localStorage token if /api/me fails
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const decoded: User = jwtDecode(token);
+            setUser(decoded);
+          } catch (error) {
+            console.error('Invalid token:', error);
+            localStorage.removeItem('token');
+          }
+        }
       } catch (error) {
-        console.error('Invalid token:', error);
-        localStorage.removeItem('token');
+        console.error('Auth check failed:', error);
       }
-    }
+    };
+
+    checkAuth();
   }, []);
 
   const login = (token: string) => {
     localStorage.setItem('token', token);
-    const decoded: User = jwtDecode(token);
-    setUser(decoded);
+    try {
+      const decoded: User = jwtDecode(token);
+      setUser(decoded);
+    } catch (error) {
+      console.error('Invalid token:', error);
+      localStorage.removeItem('token');
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await fetch('/api/logout', { 
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      localStorage.removeItem('token');
+      setUser(null);
+    }
   };
 
   return (

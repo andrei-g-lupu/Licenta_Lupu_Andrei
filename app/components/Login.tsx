@@ -43,8 +43,20 @@ const Login = () => {
         return;
       }
 
-      // Use the stored callback URL
-      window.location.href = callbackUrl;
+      // Store token in localStorage for client-side auth
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+
+      // Fetch user info
+      const userInfoRes = await fetch('/api/me', { credentials: 'include' });
+      const userInfo = await userInfoRes.json();
+
+      if (userInfo.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push(callbackUrl);
+      }
     } catch (err) {
       console.error('Login Error:', err);
       setError('Login failed. Please try again.');

@@ -1,0 +1,22 @@
+[33md3a7af3[m[33m ([m[1;36mHEAD -> [m[1;32m0.3.1[m[33m, [m[1;31morigin/0.3.1[m[33m)[m yet another test build pls accept it vercel
+[33m0b8fa2b[m Enhanced query test build
+[33m6b0912c[m Working build of optimizied query, no more fintetuned gpt
+[33m8726af9[m test2
+[33ma350aab[m test
+[33mc5654e7[m 0.3.1 correct build
+[33ma92113b[m[33m ([m[1;31morigin/0.3.0[m[33m, [m[1;32m0.3.0[m[33m)[m New functionality, enhanced query, mobile friendlier
+[33mc3c351f[m[33m ([m[1;31morigin/0.2.1[m[33m, [m[1;32m0.2.1[m[33m)[m Still testing the cache clearance cookie clear and build fixes
+[33m382520f[m Testing cache clearance along with cookie clearance fo 0.2.1
+[33m62a2c47[m testing differences between local and production cookies clearance
+[33m7387744[m Really fixed build problems for 0.2.1
+[33m9859830[m Fixed build bug for 0.2.1
+[33maf71970[m Fixed build for 0.2.1
+[33mba0639b[m Fixed bug where users still able to access chat page after disconnecting
+[33m06f3194[m[33m ([m[1;31morigin/dev[m[33m, [m[1;31morigin/0.2.0[m[33m, [m[1;32mdev[m[33m, [m[1;32m0.2.0[m[33m)[m Chat history maintained and refreshed when clicking new chat
+[33mc7e2e4e[m New frontend revamp, 90% functional
+[33mcbd96c8[m hope for the best
+[33m351fcaf[m trying to merge this stuff
+[33m4caa9de[m first push with yml file
+[33mf820397[m first deploy trial
+[33m2cbbdcf[m Login_Obligatoriu
+[33m3be5114[m Initial commit
